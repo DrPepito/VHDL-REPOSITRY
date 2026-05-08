@@ -1,0 +1,130 @@
+------------------------------------------------------
+--      Display Accelerations on Pmod OLED
+------------------------------------------------------
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+use ieee.math_real.all;
+
+------------------------------------------------------
+--                GENERIC PARAMETER
+------------------------------------------------------
+-- f_clk      : main clock frequency
+------------------------------------------------------
+--                   INPUTS
+------------------------------------------------------
+-- clk        : main clock
+-- resetn     : asynchronous (active low) reset
+-- start      : start display
+-- data_X     : X-axis acceleration (8 bits)
+-- data_Y     : X-axis acceleration (8 bits)
+-- data_Z     : X-axis acceleration (8 bits)
+------------------------------------------------------
+--                   OUTPUTS
+------------------------------------------------------
+-- ready      : interface is ready
+-- dc         : (to pmod OLED) data (1) or command (0)
+-- res        : (to pmod OLED)
+-- vbat       : (to pmod OLED)
+-- vdd        : (to pmod OLED)
+-- sclk       : (to pmod OLED) spi clock
+-- cs         : (to pmod OLED) spi chip select
+-- mosi       : (to pmod OLED) spi serial data
+------------------------------------------------------
+
+
+entity display_oled is  
+  generic(
+    f_clk   : real   := 100.0E6;   -- 100 MHz  
+    );      
+  port (
+    clk           : in  std_logic;  
+    resetn        : in  std_logic;
+    start         : in  std_logic;
+    data_X        : in  std_logic_vector(8-1 downto 0);
+    data_Y        : in  std_logic_vector(8-1 downto 0);
+    data_Z        : in  std_logic_vector(8-1 downto 0);  
+    ready         : out std_logic;
+    -- pmod oled
+    dc            : out std_logic;
+    res           : out std_logic;
+    vbat          : out std_logic;
+    vdd           : out std_logic;
+    sclk          : out std_logic;
+    cs            : out std_logic;
+    mosi          : out std_logic
+    add_char      : inout std_logic_vetcor (5 down to 0);
+    char_in     :  out std_logic_vector (7 down to 0);
+
+    );
+end entity;
+
+architecture rtl of display_oled is  
+
+    signal A      : std_logic;
+    signal B      : std_logic_vector(7 downto 0);
+    signal C      : std_logic;
+    signal ASCII  : std_logic_vector(7 downto 0);
+    signal no_ligne : std_logic_vector(1 downto 0);
+    signal no_char  : std_logic_vector(3 downto 0);
+
+architecture rtl of display_oled is  
+
+    signal no_ligne : std_logic_vector(1 downto 0);
+    signal no_char  : std_logic_vector(3 downto 0);
+    signal B        : std_logic_vector(7 downto 0);
+    signal C        : std_logic;
+    signal ASCII    : std_logic_vector(7 downto 0);
+    signal A        : std_logic;
+begin
+    no_ligne <= addr_char(5 downto 4);
+    no_char  <= addr_char(3 downto 0);
+
+    mux_xyz : process(no_ligne, data_X, data_Y, data_Z) is
+    begin
+        case no_ligne is
+            when "00"   => B <= (others => '0');
+            when "01"   => B <= data_X;
+            when "10"   => B <= data_Y;
+            when others => B <= data_Z;
+        end case;
+    end process;
+
+    comp : process(B) is
+    begin
+        if unsigned(B) > 9 then
+            C <= '1';
+        else
+            C <= '0';
+        end if;
+    end process;
+
+    trad_ascii : process(B, C) is
+    begin
+        if C = '0' then
+            ASCII <= std_logic_vector(unsigned(B) + 48);
+        else
+            ASCII <= std_logic_vector(unsigned(B) + 55);
+        end if;
+    end process;
+
+    detect : process(no_char) is
+    begin
+        if no_char = "1001" or no_char = "1010" then
+            A <= '1';
+        else
+            A <= '0';
+        end if;
+    end process;
+
+    mux_out : process(A, ASCII, data) is
+    begin
+        if A = '0' then
+            char_in <= ASCII;
+        else
+            char_in <= data;
+        end if;
+    end process;
+   
+end architecture;
